@@ -25,35 +25,41 @@ def get_batch(data, args, indices, tokenizer):
     labels = []         # 存储真实事件标签的id
     candiSet = []  # 存储候选节点的id
     for idx in indices:
-        candi = [tokenizer.encode(data[idx]['candiSet'][i])[1] for i in range(len(data[idx]['candiSet']))]
+        # candi = [tokenizer.encode(data[idx]['candiSet'][i])[1] for i in range(len(data[idx]['candiSet']))]
+        candi = [tokenizer.encode(data[idx]['candiSet'][i])[0] for i in range(len(data[idx]['candiSet']))]
+        
         template, relation = getTemplate(args, data[idx])
+        template = template.replace('<mask>', '<|endoftext|>') # gpt2
 
         encode_dict = tokenizer.encode_plus(
             template,
             add_special_tokens=True,
-            padding='max_length',
-            max_length=args.len_arg,
+            max_length=args.len_arg,  # 仅在需要时进行截断
             truncation=True,
-            pad_to_max_length=True,
-            return_attention_mask=True,
+            return_attention_mask=False,
             return_tensors='pt'
         )
+        # tokens = [tokenizer.convert_ids_to_tokens(ids) for ids in encode_dict['input_ids']]
+        # print(tokens)
+        # import ipdb;ipdb.set_trace()
+
         arg_1_idx = encode_dict['input_ids']
-        arg_1_mask = encode_dict['attention_mask']
-        label = tokenizer.encode(data[idx]['candiSet'][data[idx]['label']])[1]
+        # arg_1_mask = encode_dict['attention_mask']
+        # label = tokenizer.encode(data[idx]['candiSet'][data[idx]['label']])[1]
+        label = tokenizer.encode(data[idx]['candiSet'][data[idx]['label']])[0]
         labels.append(label)
         candiSet.append(candi)
+        
 
         if len(batch_idx) == 0:
             batch_idx = arg_1_idx
-            batch_mask = arg_1_mask
-            mask_indices = torch.nonzero(arg_1_idx == 50264, as_tuple=False)[0][1]
+            mask_indices = torch.nonzero(arg_1_idx == 50256, as_tuple=False)[0][1]
             mask_indices = torch.unsqueeze(mask_indices, 0)
         else:
             batch_idx = torch.cat((batch_idx, arg_1_idx), dim=0)
-            batch_mask = torch.cat((batch_mask, arg_1_mask), dim=0)
-            mask_indices = torch.cat((mask_indices, torch.unsqueeze(torch.nonzero(arg_1_idx == 50264, as_tuple=False)[0][1], 0)), dim=0)
-    return batch_idx, batch_mask, mask_indices, labels, candiSet
+            mask_indices = torch.cat((mask_indices, torch.unsqueeze(torch.nonzero(arg_1_idx == 50256, as_tuple=False)[0][1], 0)), dim=0)
+
+    return batch_idx, mask_indices ,labels, candiSet
 
 #### 
 # tokenize sentence and get event idx
@@ -158,7 +164,8 @@ def doCollect(data, tokenizer, multi_event, to_add, special_multi_event_token, e
             special_multi_event_token.append("<a_" + str(len(special_multi_event_token)) + ">")
             event_dict[special_multi_event_token[-1]] = multi_event[-1]
             reverse_event_dict[multi_event[-1]] = special_multi_event_token[-1]
-            to_add[special_multi_event_token[-1]] = tokenizer(multi_event[-1].strip())['input_ids'][1: -1]
+            #to_add[special_multi_event_token[-1]] = tokenizer(multi_event[-1].strip())['input_ids'][1: -1]
+            to_add[special_multi_event_token[-1]] = tokenizer(multi_event[-1].strip())['input_ids'] # gpt
     return multi_event, to_add, special_multi_event_token, event_dict, reverse_event_dict
 
 

@@ -16,7 +16,7 @@ import logging
 import tqdm
 from datetime import datetime
 from load_data import load_data
-from transformers import RobertaTokenizer, AdamW
+from transformers import RobertaTokenizer, AdamW ,GPT2Tokenizer
 from parameter import parse_args
 from tools import calculate, get_batch, correct_data,collect_mult_event,replace_mult_event,get_test_batch
 import random
@@ -68,7 +68,8 @@ printlog('Passed args:')
 printlog('log path: {}'.format(args.log))
 printlog('transformer model: {}'.format(args.model_name))
 
-tokenizer = RobertaTokenizer.from_pretrained(args.model_name)
+# tokenizer = RobertaTokenizer.from_pretrained(args.model_name)
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
 # tokenizer = RobertaTokenizer.from_pretrained("FacebookAI/roberta-base")
 # -------------------------------- 加载数据 --------------------------------
 printlog('Loading data')
@@ -102,7 +103,8 @@ test_data = replace_mult_event(test_data,reverse_event_dict)
 
 # ---------- network ----------
 net = MLP(args).to(device)
-net.load_state_dict(torch.load("outmodel/base__fold-1__2024-11-01 20.pth"))
+# net.load_state_dict(torch.load("outmodel/base__fold-1__2024-11-01 20.pth"))
+# import ipdb;ipdb.set_trace()
 net.handler(to_add, tokenizer) # 对新添加的词向量进行初始化 <a_n> 对应的词向量为该事件的平均词向量
 no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight'] # 不进行权重衰减的参数
 optimizer_grouped_parameters = [
@@ -198,13 +200,15 @@ for epoch in range(args.num_epoch):
     for ii, batch_indices in enumerate(all_indices, 1):
         progress.update(1)
         # get a batch of wordvecs
-        batch_arg, mask_arg, mask_indices, labels, candiSet = get_batch(train_data, args, batch_indices, tokenizer)
+        batch_arg,mask_indices, labels, candiSet = get_batch(train_data, args, batch_indices, tokenizer)
+        # import ipdb;ipdb.set_trace()
         batch_arg = batch_arg.to(device)
-        mask_arg = mask_arg.to(device)
         mask_indices = mask_indices.to(device)
         length = len(batch_indices)
         # fed data into network
-        prediction = net(batch_arg, mask_arg, mask_indices, length)
+        prediction = net(batch_arg,mask_indices, length)
+
+        
         # answer_space：[23702,50265]
         label = torch.LongTensor(labels).to(device)
         # loss
@@ -256,14 +260,13 @@ for epoch in range(args.num_epoch):
         progress.update(1)
 
         # get a batch of dev_data
-        batch_arg, mask_arg, mask_indices, labels, candiSet = get_batch(dev_data, args, batch_indices, tokenizer)
+        batch_arg, mask_indices, labels, candiSet = get_batch(dev_data, args, batch_indices, tokenizer)
 
         batch_arg = batch_arg.to(device)
-        mask_arg = mask_arg.to(device)
         mask_indices = mask_indices.to(device)
         length = len(batch_indices)
         # fed data into network
-        prediction = net(batch_arg, mask_arg, mask_indices, length)
+        prediction = net(batch_arg, mask_indices, length)
         ##
         label = torch.LongTensor(labels).to(device)
         loss = cross_entropy(prediction, label)
