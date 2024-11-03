@@ -89,7 +89,7 @@ class MLP(nn.Module):
         logits = outputs.logits[0]
 
         # 获取预测结果
-        temp_emb = F.softmax(logits, dim=-1)
+        temp_emb = logits
         # prediction = torch.tensor([]).to(device)
 
         for i in range(batch_size):
